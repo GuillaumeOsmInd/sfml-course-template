@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(CMakeSFMLProject LANGUAGES CXX)
+project(SFMLProject LANGUAGES CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -13,8 +13,25 @@ FetchContent_Declare(SFML
     SYSTEM)
 FetchContent_MakeAvailable(SFML)
 
-add_executable(main src/main.cpp)
+add_executable(main
+        src/game.cpp
+        src/game.h
+        #src/answers/entity/entity.cpp
+        src/entity/entity.h
+        #src/answers/level/level.cpp
+        src/level/level.h
+        #src/answers/entity/entities/player.cpp
+        #src/answers/level/levels/level1.cpp
+)
 target_compile_features(main PRIVATE cxx_std_17)
-target_link_libraries(main PRIVATE SFML::Graphics)
+target_link_libraries(main PRIVATE SFML::Graphics SFML::Audio)
+
+target_compile_definitions(main PRIVATE RESOURCES_DIR="${CMAKE_SOURCE_DIR}/ressources")
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT main)
+
+add_custom_command(TARGET main POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/ressources"
+        "$<TARGET_FILE_DIR:main>/ressources"
+        COMMENT "Copie des ressources")

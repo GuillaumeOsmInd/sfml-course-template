@@ -61,6 +61,4 @@ protected:
     float animTime = 0.;
     FacingDirection facing_direction_;
 };
-
-
 #endif

@@ -15,9 +15,6 @@ Game::Game() {
      * Window : https://www.sfml-dev.org/tutorials/3.1/graphics/draw/#the-drawing-window
      * View : https://www.sfml-dev.org/tutorials/3.1/graphics/view/
      */
-
-    this->window = sf::RenderWindow(sf::VideoMode({400, 400}), "SFML works!");
-    this->view = window.getDefaultView();
 }
 
 void Game::initialize() {
@@ -35,7 +32,7 @@ void Game::initialize() {
     //currentLevel = levels.front().get();
 
     /**
-     * 2. Décommenter le player. Vous allez créer
+     * 2. Décommenter le player. Vous allez d'abord créer un fichier entity.cpp qui sera hérité par le joueur (player.cpp) et un PNJ (npc.cpp)
      */
 
     //sf::Texture playerTexture = sf::Texture(RESOURCES_DIR "/player/player_sprite_sheet.png");

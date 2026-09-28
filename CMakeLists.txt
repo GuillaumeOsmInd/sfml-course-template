@@ -20,6 +20,7 @@ add_executable(main
         src/entity/entity.h
         #src/answers/level/level.cpp
         src/level/level.h
+        #src/answers/answers.cpp
         #src/answers/entity/entities/player.cpp
         #src/answers/level/levels/level1.cpp
 )

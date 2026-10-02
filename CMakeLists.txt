@@ -16,13 +16,12 @@ FetchContent_MakeAvailable(SFML)
 add_executable(main
         src/game.cpp
         src/game.h
-        #src/answers/entity/entity.cpp
+        src/entity/entity.cpp
         src/entity/entity.h
-        #src/answers/level/level.cpp
+        src/level/level.cpp
         src/level/level.h
-        #src/answers/answers.cpp
-        #src/answers/entity/entities/player.cpp
-        #src/answers/level/levels/level1.cpp
+        src/entity/entities/player.cpp
+        src/level/levels/level1.cpp
 )
 target_compile_features(main PRIVATE cxx_std_17)
 target_link_libraries(main PRIVATE SFML::Graphics SFML::Audio)

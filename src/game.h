@@ -9,6 +9,8 @@
 
 #include "entity/entity.h"
 #include "level/level.h"
+#include "entity/entities/player.cpp"
+#include "entity/entities/npc.cpp"
 
 class Game {
 public:
@@ -23,28 +25,23 @@ public:
 
     void onResize(sf::Vector2u size);
 
+    void changeLevel(std::size_t index);
+
     sf::View& getView();
     void setView(const sf::View &view);
 
-    void addEntity(std::shared_ptr<Entity> entity);
-
-    bool hasEntity(std::shared_ptr<Entity> entity);
-
-    Entity* getEntity(long int id);
-    bool removeEntity(const Entity *entity);
-    bool removeEntity(long int id);
-
-    bool isFree(const sf::FloatRect &rect, Entity &ignore) const;
+    bool isFree(const sf::FloatRect &rect, Entity &ent, const sf::FloatRect *from = nullptr) const;
 
 private:
+    void updateViewport();
+    void clampView();
+
     sf::RenderWindow window;
-    // Camera : modifiable par les entites pendant update(), appliquee a la
-    // fenetre juste avant le rendu.
     sf::View view;
     sf::Clock clock;
-    std::vector<std::shared_ptr<Entity>> entities{};
-    Level* currentLevel;
+    Level* currentLevel = nullptr;
+    sf::Texture playerTexture;
     std::vector<std::unique_ptr<Level>> levels{};
 };
 
-#endif //SFMLPROJECT_GAME_H
+#endif

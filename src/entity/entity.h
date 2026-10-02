@@ -5,6 +5,8 @@
 #ifndef SFMLPROJECT_ENTITY_H
 #define SFMLPROJECT_ENTITY_H
 
+#include <utility>
+
 #include "SFML/Graphics/RenderWindow.hpp"
 #include "SFML/Graphics/Sprite.hpp"
 #include "SFML/Graphics/Texture.hpp"
@@ -15,10 +17,10 @@
 class Game;
 
 enum FacingDirection {
-    SOUTH,
-    WEST,
-    EAST,
-    NORTH
+    DOWN,
+    LEFT,
+    RIGHT,
+    UP
 };
 
 class Entity {
@@ -30,6 +32,7 @@ public:
     virtual void update(float dt, sf::View &view, const Game &game) {
         this->animTime += dt;
     }
+
     virtual void draw(sf::RenderTarget &target, const sf::RenderStates &states) const;
 
     long int getId() const;
@@ -38,7 +41,7 @@ public:
 
     sf::Vector2f getPosition() const;
     void setPosition(sf::Vector2f position);
-    bool move(sf::Vector2f offset, const Game& game);
+    std::pair<bool, bool> move(sf::Vector2f offset, const Game& game);
 
     sf::Angle getRotation() const;
     void setRotation(sf::Angle rotation);
@@ -59,6 +62,7 @@ protected:
     sf::Sprite sprite;
     bool is_visible = false;
     float animTime = 0.;
-    FacingDirection facing_direction_;
+    FacingDirection facing_direction_ = DOWN;
+    sf::Vector2f velocity, last_velocity;
 };
 #endif

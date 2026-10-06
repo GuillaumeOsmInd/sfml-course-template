@@ -12,6 +12,8 @@
 #include "SFML/Graphics/Image.hpp"
 #include "SFML/Graphics/RenderWindow.hpp"
 
+#include "../entity/facing_direction.h"
+
 class Entity;
 class Game;
 
@@ -38,11 +40,16 @@ public:
 
     virtual sf::Vector2f getSpawnPoint() const;
 
-    bool isCollinding(const sf::FloatRect &rect) const;
+    // Vrai si l'entite qui passe de `from` a `to` en avancant vers `side`
+    // est bloquee par le niveau : mur (rouge impair) dans toutes les
+    // directions, plateforme traversable (bleu impair) seulement par le dessus.
+    bool isCollinding(const sf::FloatRect &from, const sf::FloatRect &to, FacingDirection side) const;
 
-    // Plateforme traversable (bleu impair) : vrai si les pieds passent par
-    // le dessus d'une plateforme en allant de `from` a `to`.
-    bool landsOnOneWay(const sf::FloatRect &from, const sf::FloatRect &to) const;
+    // Vrai si ce deplacement fait FRANCHIR le bord du bas du niveau, de
+    // l'interieur vers l'exterieur. Une entite deja en dessous (sous-terrain
+    // atteint par teleportation) ne le franchit pas.
+    bool fallsOutOfBottom(const sf::FloatRect &from, const sf::FloatRect &to) const;
+
 
     void addEntity(std::shared_ptr<Entity> entity);
     bool hasEntity(std::shared_ptr<Entity> entity);
@@ -51,8 +58,6 @@ public:
     bool removeEntity(const Entity *entity);
     bool removeEntity(long int id);
 
-    // Par reference : renvoyer une copie ferait agir clear(), erase()... sur
-    // une copie temporaire, sans toucher aux entites du niveau.
     std::vector<std::shared_ptr<Entity>> &getEntities();
     const std::vector<std::shared_ptr<Entity>> &getEntities() const;
 protected:

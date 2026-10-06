@@ -20,8 +20,10 @@ add_executable(main
         src/entity/entity.h
         src/level/level.cpp
         src/level/level.h
-        src/entity/entities/player.cpp
+        src/entity/entities/player/player.cpp
         src/level/levels/level1.cpp
+        src/entity/entities/humanoid.cpp
+        src/entity/entities/blocks/block.cpp
 )
 target_compile_features(main PRIVATE cxx_std_17)
 target_link_libraries(main PRIVATE SFML::Graphics SFML::Audio)

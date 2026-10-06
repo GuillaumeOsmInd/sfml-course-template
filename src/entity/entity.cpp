@@ -34,16 +34,29 @@ sf::FloatRect Entity::getHitbox() const {
     return this->sprite.getGlobalBounds();
 }
 
-void Entity::interactWith(Entity &entity) const {}
+void Entity::interactWith(Entity &entity, FacingDirection side) const {}
+
+void Entity::interactWithLevel(FacingDirection side) {}
+
+bool Entity::hasFallenOutOfLevel() const {
+    return this->fallen_out_of_level;
+}
+
+void Entity::markFallenOutOfLevel() {
+    this->fallen_out_of_level = true;
+}
 
 std::pair<bool, bool> Entity::move(const sf::Vector2f offset, const Game& game) {
     const sf::Vector2f start = getPosition();
     bool movedX = false;
     bool movedY = false;
 
+    // Pour chaque axe : hitbox avant, deplacement, puis test entre les deux.
     if (offset.x != 0) {
+        const sf::FloatRect before = getHitbox();
         setPosition({start.x + offset.x, start.y});
-        movedX = game.isFree(getHitbox(), *this);
+        const FacingDirection side = offset.x > 0 ? RIGHT : LEFT;
+        movedX = game.isFree(before, getHitbox(), *this, side);
         if (!movedX) {
             setPosition(start);
         }
@@ -51,11 +64,10 @@ std::pair<bool, bool> Entity::move(const sf::Vector2f offset, const Game& game) 
 
     if (offset.y != 0) {
         const float x = getPosition().x;
-        // Hitbox avant le deplacement vertical : les plateformes traversables
-        // en ont besoin pour savoir si on arrive par le dessus.
         const sf::FloatRect before = getHitbox();
         setPosition({x, start.y + offset.y});
-        movedY = game.isFree(getHitbox(), *this, offset.y > 0 ? &before : nullptr);
+        const FacingDirection side = offset.y > 0 ? DOWN : UP;
+        movedY = game.isFree(before, getHitbox(), *this, side);
         if (!movedY) {
             setPosition({x, start.y});
         }

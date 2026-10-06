@@ -9,8 +9,8 @@
 
 #include "entity/entity.h"
 #include "level/level.h"
-#include "entity/entities/player.cpp"
-#include "entity/entities/npc.cpp"
+#include "entity/entities/player/player.cpp"
+#include "entity/entities/enemies/enemy.cpp"
 
 class Game {
 public:
@@ -30,7 +30,7 @@ public:
     sf::View& getView();
     void setView(const sf::View &view);
 
-    bool isFree(const sf::FloatRect &rect, Entity &ent, const sf::FloatRect *from = nullptr) const;
+    bool isFree(const sf::FloatRect &from, const sf::FloatRect &to, Entity &ent, FacingDirection side) const;
 
 private:
     void updateViewport();
@@ -40,6 +40,7 @@ private:
     sf::View view;
     sf::Clock clock;
     Level* currentLevel = nullptr;
+    std::size_t currentLevelIndex = 0;   // pour recharger le niveau courant
     sf::Texture playerTexture;
     std::vector<std::unique_ptr<Level>> levels{};
 };

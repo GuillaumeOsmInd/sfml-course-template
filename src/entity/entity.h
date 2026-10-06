@@ -14,19 +14,14 @@
 #include "SFML/System/Vector2.hpp"
 #include "SFML/Window/Window.hpp"
 
-class Game;
+#include "facing_direction.h"
 
-enum FacingDirection {
-    DOWN,
-    LEFT,
-    RIGHT,
-    UP
-};
+class Game;
 
 class Entity {
 public:
 
-    Entity(int id, const sf::Texture &texture, sf::Vector2f position);
+    explicit Entity(int id, const sf::Texture &texture, sf::Vector2f position);
     virtual ~Entity() = default;
 
     virtual void update(float dt, sf::View &view, const Game &game) {
@@ -55,7 +50,19 @@ public:
     bool isVisible() const;
     void setVisible(bool visible);
 
-    virtual void interactWith(Entity &entity) const;
+    virtual void interactWith(Entity &entity, FacingDirection side) const;
+
+    // Appelee quand cette entite touche le niveau (mur ou plateforme).
+    // `side` : cote de CETTE entite ou a lieu le contact, comme interactWith.
+    // Pas const : reagir a un mur demande souvent de modifier l'entite
+    // (faire demi-tour, annuler une vitesse...).
+    virtual void interactWithLevel(FacingDirection side);
+
+    // Mis a vrai par Game::isFree quand l'entite sort du niveau par le bas
+    // en tombant depuis l'interieur. Une teleportation (setPosition) ne passe
+    // pas par move(), elle ne peut donc jamais declencher ce drapeau.
+    bool hasFallenOutOfLevel() const;
+    void markFallenOutOfLevel();
 
 protected:
     long int id;
@@ -64,5 +71,6 @@ protected:
     float animTime = 0.;
     FacingDirection facing_direction_ = DOWN;
     sf::Vector2f velocity, last_velocity;
+    bool fallen_out_of_level = false;
 };
 #endif

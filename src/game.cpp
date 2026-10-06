@@ -62,6 +62,23 @@ void Game::updateThings() {
         entity->update(dt, view, *this);
     }
 
+    // Apres la boucle seulement : changeLevel() et erase() modifient la liste
+    // des entites, ce qui est interdit pendant qu'on la parcourt.
+    auto &entities = this->currentLevel->getEntities();
+
+    // Mario tombe hors du niveau : il meurt, le niveau repart de zero.
+    const bool playerFell = std::any_of(entities.begin(), entities.end(), [](const auto &entity) {
+        return entity->hasFallenOutOfLevel() && dynamic_cast<Player *>(entity.get()) != nullptr;
+    });
+    if (playerFell) {
+        changeLevel(currentLevelIndex);
+        return;
+    }
+
+    // Les autres entites tombees (ennemis...) sont simplement retirees.
+    entities.erase(std::remove_if(entities.begin(), entities.end(), [](const auto &entity) {
+        return entity->hasFallenOutOfLevel();
+    }), entities.end());
 }
 
 void Game::drawThings() {
@@ -76,23 +93,26 @@ void Game::drawThings() {
     this->currentLevel->draw(window, RenderPass::AFTER_ENTITIES);
 }
 
-bool Game::isFree(const sf::FloatRect &rect, Entity &ent, const sf::FloatRect *from) const {
-    if (currentLevel != nullptr && currentLevel->isCollinding(rect)) {
-        return false;
-    }
-
-    if (currentLevel != nullptr && from != nullptr && currentLevel->landsOnOneWay(*from, rect)) {
+bool Game::isFree(const sf::FloatRect &from, const sf::FloatRect &to, Entity &ent, const FacingDirection side) const {
+    if (currentLevel != nullptr && currentLevel->isCollinding(from, to, side)) {
+        ent.interactWithLevel(side);
         return false;
     }
 
     for (const auto &entity : this->currentLevel->getEntities()) {
         if (entity.get() == &ent)
             continue;
-        if (rect.findIntersection(entity->getHitbox())) {
-            ent.interactWith(*entity);
-            entity->interactWith(ent);
+        if (to.findIntersection(entity->getHitbox())) {
+            ent.interactWith(*entity, side);
+            entity->interactWith(ent, opposite(side));
             return false;
         }
+    }
+
+    // Deplacement accepte : s'il fait sortir l'entite par le bas, on la marque.
+    // On ne recharge pas le niveau ici : on est en plein parcours des entites.
+    if (currentLevel != nullptr && side == DOWN && currentLevel->fallsOutOfBottom(from, to)) {
+        ent.markFallenOutOfLevel();
     }
     return true;
 }
@@ -113,6 +133,7 @@ void Game::changeLevel(const std::size_t index) {
     }
 
     currentLevel = next;
+    currentLevelIndex = index;
     currentLevel->load(*this);
 
     auto player = std::make_shared<Player>(playerTexture);

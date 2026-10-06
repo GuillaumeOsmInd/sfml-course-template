@@ -3,14 +3,14 @@
 // ****************************************************
 
 
-#ifndef SFMLPROJECT_NPC_H
-#define SFMLPROJECT_NPC_H
+#ifndef SFMLPROJECT_ENEMY_H
+#define SFMLPROJECT_ENEMY_H
 
-#include "../entity.h"
+#include "../humanoid.cpp"
 
-class NPC : public Entity {
+class Enemy : public Humanoid {
 public:
-    explicit NPC(const int id, const sf::Texture &texture) : Entity(id, texture, sf::Vector2f(0, 0)) {
+    explicit Enemy(const int id, const sf::Texture &texture) : Humanoid(id, texture, sf::Vector2f(0, 0)) {
     }
 
     void update(float dt, sf::View &view, const Game &game) override {
@@ -30,16 +30,9 @@ public:
             dir.y = 1;
         }
 
-        int y = static_cast<int>(facing_direction_) * 27;
-        const auto [movedX, movedY] = this->move(dir * step, game);
-        if (movedX || movedY) {
-            sprite.setTextureRect(sf::IntRect({(static_cast<int>(animTime / 0.15) % 4) * 19, y}, {19, 27}));
-        } else {
-            sprite.setTextureRect(sf::IntRect({0, y}, {19, 27}));
-        }
     }
 
-    void interactWith(Entity &entity) const override {}
+    void interactWith(Entity &entity, FacingDirection side) const override {}
 };
 
 #endif

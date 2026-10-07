@@ -13,6 +13,7 @@
 #include "SFML/Graphics/RenderWindow.hpp"
 
 #include "../entity/facing_direction.h"
+#include "zone.h"
 
 class Entity;
 class Game;
@@ -43,12 +44,13 @@ public:
     // Vrai si l'entite qui passe de `from` a `to` en avancant vers `side`
     // est bloquee par le niveau : mur (rouge impair) dans toutes les
     // directions, plateforme traversable (bleu impair) seulement par le dessus.
-    bool isCollinding(const sf::FloatRect &from, const sf::FloatRect &to, FacingDirection side) const;
+    // `zone` : zone de l'entite. Les pixels des autres zones sont ignores.
+    bool isCollinding(const sf::FloatRect &from, const sf::FloatRect &to, FacingDirection side, int zone) const;
 
-    // Vrai si ce deplacement fait FRANCHIR le bord du bas du niveau, de
-    // l'interieur vers l'exterieur. Une entite deja en dessous (sous-terrain
-    // atteint par teleportation) ne le franchit pas.
-    bool fallsOutOfBottom(const sf::FloatRect &from, const sf::FloatRect &to) const;
+    // Vrai si ce deplacement fait FRANCHIR le bord du bas de la zone de
+    // l'entite, de l'interieur vers l'exterieur. Une entite teleportee dans
+    // une autre zone (sous-terrain) ne franchit rien.
+    bool fallsOutOfBottom(const sf::FloatRect &from, const sf::FloatRect &to, int zone) const;
 
 
     void addEntity(std::shared_ptr<Entity> entity);

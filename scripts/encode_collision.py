@@ -14,8 +14,10 @@ Les canaux se combinent. Exemple : 0x00FFFF = premier plan + plateforme
 traversable, la texture est dessinee par dessus le joueur et le porte
 quand il est dessus.
 
-Seule la valeur exacte 0xFF compte, et les pixels totalement transparents
-du masque sont ignores (aucune information).
+Seule la valeur exacte 0xFF compte. Ne portent aucune information :
+  - les pixels totalement transparents du masque ;
+  - les pixels blancs (0xFFFFFF) et noirs (0x000000) : on peut s'en servir
+    comme fond ou pour annoter le masque sans creer de collisions.
 
 Principe, pour chaque canal :
   1. Tous les pixels de la texture recoivent une composante PAIRE.
@@ -37,10 +39,10 @@ from pathlib import Path
 from PIL import Image, ImageChops
 
 
-def flag(band: Image.Image, opaque: Image.Image) -> Image.Image:
-    """255 la ou la composante vaut exactement 0xFF et le pixel du masque est visible, 0 ailleurs."""
+def flag(band: Image.Image, informative: Image.Image) -> Image.Image:
+    """255 la ou la composante vaut exactement 0xFF sur un pixel porteur d'information, 0 ailleurs."""
     is_full = band.point(lambda v: 255 if v == 0xFF else 0)
-    return ImageChops.multiply(is_full, opaque)
+    return ImageChops.multiply(is_full, informative)
 
 
 def encode_lsb(channel: Image.Image, marked: Image.Image) -> Image.Image:
@@ -58,9 +60,18 @@ def encode(texture: Image.Image, mask: Image.Image) -> tuple[Image.Image, dict[s
     # l'editeur a laisse des valeurs RGB dessous.
     opaque = mask_a.point(lambda v: 255 if v > 0 else 0)
 
-    solid = flag(mask_r, opaque)
-    front = flag(mask_g, opaque)
-    one_way = flag(mask_b, opaque)
+    # Le blanc et le noir non plus : sans cette regle, un pixel blanc
+    # (FF sur les trois canaux) activerait les trois drapeaux a la fois.
+    def all_equal(value: int) -> Image.Image:
+        bands = [band.point(lambda v: 255 if v == value else 0) for band in (mask_r, mask_g, mask_b)]
+        return ImageChops.multiply(ImageChops.multiply(bands[0], bands[1]), bands[2])
+
+    ignored = ImageChops.lighter(all_equal(0xFF), all_equal(0x00))   # blanc OU noir
+    informative = ImageChops.multiply(opaque, ImageChops.invert(ignored))
+
+    solid = flag(mask_r, informative)
+    front = flag(mask_g, informative)
+    one_way = flag(mask_b, informative)
 
     # Chaque canal du masque est encode dans le meme canal de la texture.
     # Les trois sont toujours normalises, meme sans aucun pixel marque :
@@ -74,6 +85,7 @@ def encode(texture: Image.Image, mask: Image.Image) -> tuple[Image.Image, dict[s
         "collision          (R)": solid.histogram()[255],
         "premier plan       (G)": front.histogram()[255],
         "collision par haut (B)": one_way.histogram()[255],
+        "ignores (blanc)       ": ImageChops.multiply(opaque, all_equal(0xFF)).histogram()[255],
     }
     return Image.merge("RGBA", (r, g, b, a)), counts
 

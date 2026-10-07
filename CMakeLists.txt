@@ -24,6 +24,9 @@ add_executable(main
         src/level/levels/level1.cpp
         src/entity/entities/humanoid.cpp
         src/entity/entities/blocks/block.cpp
+        src/level/levels/level1_1.cpp
+        src/overlay/overlay.h
+        src/overlay/overlays/hud.cpp
 )
 target_compile_features(main PRIVATE cxx_std_17)
 target_link_libraries(main PRIVATE SFML::Graphics SFML::Audio)

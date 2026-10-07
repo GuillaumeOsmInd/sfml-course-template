@@ -16,6 +16,14 @@ public:
     }
 
     void update(float dt, sf::View &view, const Game &game) override {
+        // Mort : Humanoid gere la chute sans collisions. Pas de controles, et
+        // la camera reste figee. Le niveau redemarre quand Mario sort du cadre
+        // (voir Game::updateThings).
+        if (isDead()) {
+            Humanoid::update(dt, view, game);
+            return;
+        }
+
         dir.x = 0;
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Q)) {
             dir.x += -1;
@@ -26,7 +34,17 @@ public:
             facing_direction_ = RIGHT;
         }
 
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space)) {
+            jump();
+        }
+
         Humanoid::update(dt, view, game);
+
+        // Mort pendant cette frame (chute dans un trou) : onDeath() a deja
+        // choisi le sprite, et la camera reste figee.
+        if (isDead()) {
+            return;
+        }
 
         if (on_ground) {
             if (dir.x != 0) {
@@ -50,5 +68,16 @@ public:
     inline bool instanceof(const T *ptr) {
         return dynamic_cast<const Base*>(ptr) != nullptr;
     }
+
+protected:
+    // Animation de mort de Mario : petit saut vers le haut et sprite de mort.
+    // La suite (chute sans collisions) est commune : voir Humanoid::die().
+    void onDeath() override {
+        velocity.y = -DEATH_JUMP_SPEED;
+        sprite.setTextureRect({{116, 8}, {16, 16}});
+    }
+
+private:
+    static constexpr float DEATH_JUMP_SPEED = 300.f;   // impulsion vers le haut a la mort, pixels/s
 };
 

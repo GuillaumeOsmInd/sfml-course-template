@@ -15,6 +15,7 @@
 #include "SFML/Window/Window.hpp"
 
 #include "facing_direction.h"
+#include "../level/zone.h"
 
 class Game;
 
@@ -36,6 +37,8 @@ public:
 
     sf::Vector2f getPosition() const;
     void setPosition(sf::Vector2f position);
+
+    int getZone() const;
     std::pair<bool, bool> move(sf::Vector2f offset, const Game& game);
 
     sf::Angle getRotation() const;
@@ -52,15 +55,11 @@ public:
 
     virtual void interactWith(Entity &entity, FacingDirection side) const;
 
-    // Appelee quand cette entite touche le niveau (mur ou plateforme).
-    // `side` : cote de CETTE entite ou a lieu le contact, comme interactWith.
-    // Pas const : reagir a un mur demande souvent de modifier l'entite
-    // (faire demi-tour, annuler une vitesse...).
     virtual void interactWithLevel(FacingDirection side);
 
-    // Mis a vrai par Game::isFree quand l'entite sort du niveau par le bas
-    // en tombant depuis l'interieur. Une teleportation (setPosition) ne passe
-    // pas par move(), elle ne peut donc jamais declencher ce drapeau.
+    // Faux = les autres entites la traversent (ex. Mario mort).
+    virtual bool isSolid() const { return true; }
+
     bool hasFallenOutOfLevel() const;
     void markFallenOutOfLevel();
 
@@ -72,5 +71,6 @@ protected:
     FacingDirection facing_direction_ = DOWN;
     sf::Vector2f velocity, last_velocity;
     bool fallen_out_of_level = false;
+    int zone = 0;
 };
 #endif

@@ -61,7 +61,7 @@ sf::Vector2f Level::getSpawnPoint() const {
     return {100.f, 100.f};
 }
 
-bool Level::isCollinding(const sf::FloatRect &from, const sf::FloatRect &to, const FacingDirection side) const {
+bool Level::isCollinding(const sf::FloatRect &from, const sf::FloatRect &to, const FacingDirection side, const int zone) const {
     const sf::Vector2u size = collisionMask.getSize();
     if (size.x == 0) return false;
 
@@ -82,11 +82,17 @@ bool Level::isCollinding(const sf::FloatRect &from, const sf::FloatRect &to, con
      *  (Oui, je me suis embêté pour pas grand chose)
      */
     auto pixel = [&](const int x, const int y) { return collisionMask.getPixel({unsigned(x), unsigned(y)}); };
-    auto inside = [&](const int x, const int y) { return x >= 0 && y >= 0 && x < int(size.x) && y < int(size.y); };
+    // Seuls les pixels de la zone de l'entite comptent : au-dessus et en
+    // dessous, ce sont d'autres zones du fichier (ou le vide).
+    const float zoneTop = zone * ZONE_HEIGHT;
+    const float zoneBottom = std::min(zoneTop + ZONE_HEIGHT, float(size.y));
+    auto inside = [&](const int x, const int y) {
+        return x >= 0 && x < int(size.x) && y >= zoneTop && y < zoneBottom;
+    };
 
     // 1. Murs (rouge impair) et bords du niveau : bloquent dans toutes les directions,
-    //    sauf en haut (Mario peut sauter hors de l'ecran) et en bas (il tombe
-    //    et meurt : voir fallsOutOfBottom).
+    //    sauf en haut de la zone (Mario peut sauter hors de l'ecran) et en bas
+    //    (il tombe et meurt : voir fallsOutOfBottom).
     const sf::Vector2f corners[4] = {
         to.position,
         {to.position.x + to.size.x, to.position.y},
@@ -96,7 +102,7 @@ bool Level::isCollinding(const sf::FloatRect &from, const sf::FloatRect &to, con
     for (const sf::Vector2f &c : corners) {
         // Comparaisons en float : int(-0.5f) vaudrait 0, soit "dans le niveau".
         if (c.x < 0 || c.x >= size.x) return true;    // gauche, droite
-        if (c.y < 0 || c.y >= size.y) continue;       // au-dessus ou en dessous : vide, pas de pixel a lire
+        if (c.y < zoneTop || c.y >= zoneBottom) continue;   // hors de la zone : vide, pas de pixel a lire
         if (pixel(int(c.x), int(c.y)).r & 1) return true;
     }
 
@@ -171,9 +177,9 @@ const std::vector<std::shared_ptr<Entity>> &Level::getEntities() const {
     return entities;
 }
 
-bool Level::fallsOutOfBottom(const sf::FloatRect &from, const sf::FloatRect &to) const {
+bool Level::fallsOutOfBottom(const sf::FloatRect &from, const sf::FloatRect &to, const int zone) const {
     // On compare le HAUT de la hitbox : l'entite meurt une fois entierement
     // sortie de l'ecran, pas des que ses pieds touchent le bord.
-    const float bottom = getSize().y;
+    const float bottom = (zone + 1) * ZONE_HEIGHT;
     return from.position.y < bottom && to.position.y >= bottom;
 }

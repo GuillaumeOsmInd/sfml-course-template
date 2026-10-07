@@ -9,8 +9,8 @@
 
 #include "entity/entity.h"
 #include "level/level.h"
-#include "entity/entities/player/player.cpp"
-#include "entity/entities/enemies/enemy.cpp"
+#include "overlay/overlay.h"
+#include "SFML/Graphics/Font.hpp"
 
 class Game {
 public:
@@ -38,11 +38,21 @@ private:
 
     sf::RenderWindow window;
     sf::View view;
+
     sf::Clock clock;
+
     Level* currentLevel = nullptr;
-    std::size_t currentLevelIndex = 0;   // pour recharger le niveau courant
+
+    std::weak_ptr<Entity> player;
+    std::size_t currentLevelIndex = 0;
     sf::Texture playerTexture;
+    int life = 3;
+
     std::vector<std::unique_ptr<Level>> levels{};
+    std::vector<std::shared_ptr<Entity>> entities{};
+    std::vector<std::shared_ptr<Overlay>> overlays{};
+
+    sf::Font font = sf::Font(RESOURCES_DIR "/fonts/smb.ttf");
 };
 
 #endif

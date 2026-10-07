@@ -14,7 +14,11 @@
 
 class Game {
 public:
-    Game();
+    static Game &getInstance();
+
+    Game(const Game &) = delete;
+    Game &operator=(const Game &) = delete;
+    ~Game();
 
     void initialize();
 
@@ -25,6 +29,7 @@ public:
 
     void onResize(sf::Vector2u size);
 
+    const Level *getCurrentLevel() const;
     void changeLevel(std::size_t index);
 
     sf::View& getView();
@@ -32,9 +37,27 @@ public:
 
     bool isFree(const sf::FloatRect &from, const sf::FloatRect &to, Entity &ent, FacingDirection side) const;
 
+    void addOverlay(std::shared_ptr<Overlay> overlay);
+    sf::View getOverlayView() const;
+
+    int getLife() const;
+    void decrementLife();
+
+    // Met fin a la partie : le niveau et les entites sont figes et l'ecran
+    // "GAME OVER" s'affiche. La fenetre reste ouverte jusqu'a sa fermeture.
+    void endGame();
+    bool isGameOver() const;
+
+    const sf::Font &getFont() const;
+
 private:
+    Game();
+    friend int main();
+
     void updateViewport();
     void clampView();
+
+    bool dispatchToOverlays(const sf::Event &event);
 
     sf::RenderWindow window;
     sf::View view;
@@ -47,12 +70,15 @@ private:
     std::size_t currentLevelIndex = 0;
     sf::Texture playerTexture;
     int life = 3;
+    bool gameOver = false;
 
     std::vector<std::unique_ptr<Level>> levels{};
     std::vector<std::shared_ptr<Entity>> entities{};
     std::vector<std::shared_ptr<Overlay>> overlays{};
 
     sf::Font font = sf::Font(RESOURCES_DIR "/fonts/smb.ttf");
+
+    static Game *INSTANCE;
 };
 
 #endif

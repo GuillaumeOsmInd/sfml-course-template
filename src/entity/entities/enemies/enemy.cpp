@@ -32,7 +32,7 @@ public:
 
     }
 
-    void interactWith(Entity &entity, FacingDirection side) const override {}
+    void interactWith(Entity &entity, FacingDirection side) override {}
 };
 
 #endif

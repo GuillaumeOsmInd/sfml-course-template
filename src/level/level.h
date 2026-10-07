@@ -28,30 +28,23 @@ public:
     explicit Level(const std::filesystem::path &backgroundFile);
     virtual ~Level() = default;
 
-    void load(Game &game) {}
-    void unload() {}
+    virtual void load(Game &game) {}
+    virtual void unload() {}
 
     void update(float dt);
     void draw(sf::RenderWindow &window, RenderPass renderPass) const;
 
     const sf::Sprite& getBackground() const;
     const sf::Sprite& getForeground() const;
+    virtual bool needHud() const { return true; }
 
     sf::Vector2f getSize() const;
 
     virtual sf::Vector2f getSpawnPoint() const;
 
-    // Vrai si l'entite qui passe de `from` a `to` en avancant vers `side`
-    // est bloquee par le niveau : mur (rouge impair) dans toutes les
-    // directions, plateforme traversable (bleu impair) seulement par le dessus.
-    // `zone` : zone de l'entite. Les pixels des autres zones sont ignores.
     bool isCollinding(const sf::FloatRect &from, const sf::FloatRect &to, FacingDirection side, int zone) const;
 
-    // Vrai si ce deplacement fait FRANCHIR le bord du bas de la zone de
-    // l'entite, de l'interieur vers l'exterieur. Une entite teleportee dans
-    // une autre zone (sous-terrain) ne franchit rien.
     bool fallsOutOfBottom(const sf::FloatRect &from, const sf::FloatRect &to, int zone) const;
-
 
     void addEntity(std::shared_ptr<Entity> entity);
     bool hasEntity(std::shared_ptr<Entity> entity);

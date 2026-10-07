@@ -53,7 +53,7 @@ public:
     bool isVisible() const;
     void setVisible(bool visible);
 
-    virtual void interactWith(Entity &entity, FacingDirection side) const;
+    virtual void interactWith(Entity &entity, FacingDirection side);
 
     virtual void interactWithLevel(FacingDirection side);
 

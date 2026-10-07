@@ -11,10 +11,6 @@ class Humanoid : public Entity {
 public:
     Humanoid(int id, const sf::Texture &texture, sf::Vector2f vector2) : Entity(id, texture, vector2) {}
 
-    // Mise a mort commune a tous les humanoides : plus de deplacement controle,
-    // plus de collisions (les autres entites le traversent), et chute jusqu'a
-    // sortir de sa zone. L'animation est propre a chacun : voir onDeath().
-    // Sans effet si l'humanoide est deja mort.
     void die() {
         if (dead) return;
         dead = true;
@@ -24,11 +20,8 @@ public:
 
     bool isDead() const { return dead; }
 
-    // Mort, un humanoide ne bloque plus personne.
     bool isSolid() const override { return !dead; }
 
-    // Saute si l'humanoide est au sol. Appelee par Player (touche Espace),
-    // ou par une IA : la physique ne lit jamais le clavier elle-meme.
     void jump() {
         if (on_ground && !dead) {
             velocity.y = -JUMP_SPEED;
@@ -40,12 +33,9 @@ public:
 
         if (dead) {
             velocity.y = std::min(velocity.y + GRAVITY * dt, MAX_FALL_SPEED);
-            // sprite.move et non move() : aucune collision, ni avec le niveau
-            // ni avec les entites.
+
             sprite.move(velocity * dt);
-            // Entierement sorti de sa zone par le bas : on le signale pour qu'il
-            // soit retire du niveau. Mario, lui, fait redemarrer le niveau
-            // (voir Game::updateThings).
+
             if (getHitbox().position.y >= (getZone() + 1) * ZONE_HEIGHT) {
                 markFallenOutOfLevel();
             }
@@ -86,10 +76,6 @@ public:
             sprite.setScale({ dir.x, sprite.getScale().y });
         }
 
-        // Chute dans un trou : des que ses pieds FRANCHISSENT le bas de sa zone,
-        // l'humanoide meurt. Il est encore visible, on voit donc son animation.
-        // Le franchissement (avant au-dessus, apres en dessous) exclut le cas
-        // d'une teleportation, qui ne passe pas par ici.
         const float zoneBottom = (getZone() + 1) * ZONE_HEIGHT;
         const float feetAfter = getHitbox().position.y + getHitbox().size.y;
         if (feetBefore < zoneBottom && feetAfter >= zoneBottom) {
@@ -98,12 +84,8 @@ public:
     }
 
 protected:
-    // Animation de mort, propre a chaque humanoide. Appelee une seule fois par
-    // die(), apres que la vitesse a ete remise a zero : on peut y donner une
-    // impulsion (petit saut de Mario) et changer le sprite.
     virtual void onDeath() {}
 
-    // Au niveau de la classe : les classes derivees en ont aussi besoin.
     static constexpr float GRAVITY = 1000.f;       // pixels/s^2
     static constexpr float MAX_FALL_SPEED = 800.f; // evite de traverser le sol
     static constexpr float JUMP_SPEED = 375.f;     // impulsion initiale du saut, pixels/s
@@ -119,11 +101,6 @@ protected:
     bool dead = false;
 };
 
-// Humanoide qui marche tout seul et fait demi-tour contre les murs, comme les
-// Goombas. Il part vers la gauche, c'est-a-dire vers le joueur qui arrive.
-// Pour que le demi-tour retourne le sprite sur place, la classe derivee doit
-// centrer l'origine du sprite (comme Player) : sinon setScale(-1) le decale
-// de toute sa largeur.
 class SmartHumanoid : public Humanoid {
 public:
     SmartHumanoid(int id, const sf::Texture &texture, sf::Vector2f vector2) : Humanoid(id, texture, vector2) {
@@ -131,10 +108,6 @@ public:
         facing_direction_ = LEFT;
     }
 
-    // Pas besoin de redefinir update() : Humanoid avance deja selon dir.x.
-
-    // Un mur a gauche ou a droite : demi-tour. Le sol et le plafond (DOWN, UP)
-    // ne changent rien.
     void interactWithLevel(FacingDirection side) override {
         if (side == LEFT || side == RIGHT) {
             dir.x = -dir.x;

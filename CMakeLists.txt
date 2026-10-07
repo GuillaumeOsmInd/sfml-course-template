@@ -13,6 +13,15 @@ FetchContent_Declare(SFML
     SYSTEM)
 FetchContent_MakeAvailable(SFML)
 
+# SFML 3.1 compile FreeType et HarfBuzz lui-meme, mais ne declare que le lien
+# HarfBuzz -> FreeType. FreeType appelle pourtant HarfBuzz (auto-hinting) : en
+# lien statique avec MinGW, libharfbuzz passe avant libfreetype et les hb_*
+# restent non resolus des qu'on utilise sf::Font. On declare le lien inverse :
+# CMake voit le cycle et repete les bibliotheques sur la ligne de lien.
+if(TARGET freetype AND TARGET harfbuzz)
+    target_link_libraries(freetype INTERFACE harfbuzz)
+endif()
+
 add_executable(main
         src/game.cpp
         src/game.h
@@ -24,9 +33,11 @@ add_executable(main
         src/level/levels/level1.cpp
         src/entity/entities/humanoid.cpp
         src/entity/entities/blocks/block.cpp
-        src/level/levels/level1_1.cpp
         src/overlay/overlay.h
+        src/overlay/overlay.cpp
         src/overlay/overlays/hud.cpp
+        src/overlay/overlays/game_over.cpp
+        src/level/levels/menu.cpp
 )
 target_compile_features(main PRIVATE cxx_std_17)
 target_link_libraries(main PRIVATE SFML::Graphics SFML::Audio)

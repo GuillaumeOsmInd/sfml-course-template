@@ -39,7 +39,7 @@ sf::FloatRect Entity::getHitbox() const {
     return this->sprite.getGlobalBounds();
 }
 
-void Entity::interactWith(Entity &entity, FacingDirection side) const {}
+void Entity::interactWith(Entity &entity, FacingDirection side) {}
 
 void Entity::interactWithLevel(FacingDirection side) {}
 

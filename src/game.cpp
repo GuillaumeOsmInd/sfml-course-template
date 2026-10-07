@@ -1,33 +1,60 @@
 #include "game.h"
 
 #include <algorithm>
+#include <cassert>
 
 #include <SFML/Graphics.hpp>
 
 #include "entity/entity.h"
-#include "level/levels/level1_1.cpp"
+#include "level/levels/level1.cpp"
+#include "level/levels/menu.cpp"
 #include "SFML/Audio/Music.hpp"
 #include "entity/entities/player/player.cpp"
 #include "entity/entities/enemies/enemy.cpp"
+#include "overlay/overlays/hud.cpp"
+#include "overlay/overlays/game_over.cpp"
+
+Game *Game::INSTANCE = nullptr;
+
+Game &Game::getInstance() {
+    assert(INSTANCE != nullptr && "Game::getInstance() appele avant la creation du jeu dans main()");
+    return *INSTANCE;
+}
 
 Game::Game() {
+    // Enregistree des le debut : tout ce qui est construit ensuite (niveaux,
+    // entites, overlays) peut deja appeler getInstance().
+    assert(INSTANCE == nullptr && "Game est un singleton : une seule instance");
+    INSTANCE = this;
+
     this->window = sf::RenderWindow(sf::VideoMode({400, 400}), "Super Mario Bros!");
     this->window.setFramerateLimit(240);
     this->view = window.getDefaultView();
+
+    // Police pixel : sans lissage, le texte agrandi reste net.
+    this->font.setSmooth(false);
+}
+
+Game::~Game() {
+    INSTANCE = nullptr;
 }
 
 void Game::initialize() {
 
     //levels.push_back(std::make_shared<Level0>());
+    levels.push_back(std::make_unique<MenuLevel>());
     levels.push_back(std::make_unique<Level1_1>());
+    levels.push_back(std::make_unique<Level1_2>());
     //levels.push_back(std::make_unique<Level2>());
     //levels.push_back(std::make_unique<Level3>());
 
-    // Chargee une seule fois, avant le premier niveau. Le fond des cases de la
-    // planche (#9290FF) devient transparent.
     sf::Image playerImage(RESOURCES_DIR "/textures/mario/mario.png");
     playerImage.createMaskFromColor(sf::Color(0x92, 0x90, 0xFF));
     playerTexture = sf::Texture(playerImage);
+
+    // Overlays communs a tous les niveaux.
+    addOverlay(std::make_shared<HUD>(*this));
+    addOverlay(std::make_shared<GameOverOverlay>(*this));   // en dernier : au-dessus de tout
 
     changeLevel(0);
 
@@ -42,6 +69,8 @@ void Game::loop() {
             window.close();
         } else if (const auto *resized = event->getIf<sf::Event::Resized>()) {
             onResize(resized->size);
+        } else {
+            dispatchToOverlays(*event);
         }
     }
 
@@ -59,17 +88,24 @@ void Game::loop() {
 void Game::updateThings() {
 
     const float dt = std::min(clock.restart().asSeconds(), 0.05f);
+
+    for (const auto &overlay : this->overlays) {
+        if (overlay->isVisible(*this)) {
+            overlay->update(*this, dt);
+        }
+    }
+
+    if (gameOver) {
+        return;
+    }
+
     this->currentLevel->update(dt);
     for (auto &entity : this->currentLevel->getEntities()) {
         entity->update(dt, view, *this);
     }
 
-    // Apres la boucle seulement : changeLevel() et erase() modifient la liste
-    // des entites, ce qui est interdit pendant qu'on la parcourt.
     auto &entities = this->currentLevel->getEntities();
 
-    // Mario mort : on attend qu'il sorte du cadre par le bas, puis le niveau
-    // repart de zero. Le haut de sa hitbox doit passer sous le bas de la vue.
     if (const auto p = player.lock()) {
         const auto *mario = dynamic_cast<const Player *>(p.get());
         const float frameBottom = view.getCenter().y + view.getSize().y / 2.f;
@@ -79,9 +115,6 @@ void Game::updateThings() {
         }
     }
 
-    // Les autres entites tombees hors du niveau (ennemis...) sont retirees.
-    // Mario n'est jamais retire : sa chute passe par Player::die(), et le
-    // niveau redemarre quand il sort du cadre (ci-dessus).
     entities.erase(std::remove_if(entities.begin(), entities.end(), [](const auto &entity) {
         return entity->hasFallenOutOfLevel() && dynamic_cast<Player*>(entity.get()) == nullptr;
     }), entities.end());
@@ -98,11 +131,45 @@ void Game::drawThings() {
 
     this->currentLevel->draw(window, RenderPass::AFTER_ENTITIES);
 
+    window.setView(getOverlayView());
     for (const auto &overlay : this->overlays) {
-        if (overlay->isVisible()) {
+        if (overlay->isVisible(*this)) {
             overlay->draw(*this, window);
         }
     }
+    window.setView(view);
+}
+
+bool Game::dispatchToOverlays(const sf::Event &event) {
+    const auto targets = this->overlays;
+    for (auto it = targets.rbegin(); it != targets.rend(); ++it) {
+        if ((*it)->isVisible(*this) && (*it)->handleEvent(*this, event, window)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void Game::addOverlay(std::shared_ptr<Overlay> overlay) {
+    this->overlays.push_back(std::move(overlay));
+}
+
+sf::View Game::getOverlayView() const {
+    sf::View overlayView(sf::FloatRect({0.f, 0.f}, {ZONE_HEIGHT, ZONE_HEIGHT}));
+    overlayView.setViewport(view.getViewport());
+    return overlayView;
+}
+
+const sf::Font &Game::getFont() const {
+    return this->font;
+}
+
+int Game::getLife() const {
+    return this->life;
+}
+
+const Level *Game::getCurrentLevel() const {
+    return this->currentLevel;
 }
 
 bool Game::isFree(const sf::FloatRect &from, const sf::FloatRect &to, Entity &ent, const FacingDirection side) const {
@@ -135,8 +202,6 @@ void Game::onResize(const sf::Vector2u size) {
 void Game::changeLevel(const std::size_t index) {
     Level *next = levels.at(index).get();
 
-    // Au premier appel (depuis initialize), aucun niveau n'est encore charge :
-    // currentLevel vaut nullptr, il n'y a rien a quitter.
     if (currentLevel != nullptr) {
         currentLevel->unload();
         currentLevel->getEntities().clear();
@@ -150,13 +215,10 @@ void Game::changeLevel(const std::size_t index) {
     player->setPosition(currentLevel->getSpawnPoint());
     player->setVisible(true);
     this->currentLevel->addEntity(player);
-    this->player = player;   // la camera suit sa zone
+    this->player = player;
 
-    // Vue carree d'une zone, quelle que soit la hauteur du fichier de niveau.
     view.setSize({ZONE_HEIGHT, ZONE_HEIGHT});
 
-    // Fenetre carree, au plus grand multiple entier de la zone qui tient a
-    // l'ecran : le pixel art reste net. Elle ne depend plus du niveau.
     const unsigned zoneSide = static_cast<unsigned>(ZONE_HEIGHT);
     const unsigned maxSide = sf::VideoMode::getDesktopMode().size.y * 85 / 100;
     const unsigned windowSide = zoneSide * std::max(1u, maxSide / zoneSide);
@@ -205,6 +267,25 @@ sf::View &Game::getView() {
 
 void Game::setView(const sf::View &view) {
     this->view = view;
+}
+
+void Game::decrementLife() {
+    life--;
+    if (life < 0)
+    {
+        endGame();
+    }
+}
+
+void Game::endGame() {
+    // Simple drapeau : endGame() peut etre appelee pendant la mise a jour des
+    // entites (mort de Mario), on ne touche donc a aucune liste ici.
+    // Le reste est fait par updateThings() et GameOverOverlay::isVisible().
+    gameOver = true;
+}
+
+bool Game::isGameOver() const {
+    return gameOver;
 }
 
 int main() {

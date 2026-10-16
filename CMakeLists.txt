@@ -33,10 +33,14 @@ add_executable(main
         src/level/levels/level1.cpp
         src/entity/entities/humanoid.cpp
         src/entity/entities/blocks/block.cpp
+        src/entity/entities/enemies/goomba.cpp
+        src/entity/entities/items/mushroom.cpp
+        src/entity/entities/items/coin.cpp
         src/overlay/overlay.h
         src/overlay/overlay.cpp
         src/overlay/overlays/hud.cpp
         src/overlay/overlays/game_over.cpp
+        src/overlay/overlays/menu.cpp
         src/level/levels/menu.cpp
 )
 target_compile_features(main PRIVATE cxx_std_17)

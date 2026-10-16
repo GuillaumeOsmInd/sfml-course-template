@@ -2,6 +2,9 @@
 // Created by BOUTIGNI on 07-10-26.
 //
 
+#ifndef SFMLPROJECT_MENU_LEVEL_H
+#define SFMLPROJECT_MENU_LEVEL_H
+
 #include "../level.h"
 
 class MenuLevel : public Level
@@ -14,3 +17,5 @@ public:
         return false;
     }
 };
+
+#endif

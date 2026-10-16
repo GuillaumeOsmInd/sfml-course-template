@@ -22,7 +22,7 @@ class Game;
 class Entity {
 public:
 
-    explicit Entity(int id, const sf::Texture &texture, sf::Vector2f position);
+    Entity(const sf::Texture &texture, sf::Vector2f position);
     virtual ~Entity() = default;
 
     virtual void update(float dt, sf::View &view, const Game &game) {
@@ -31,9 +31,9 @@ public:
 
     virtual void draw(sf::RenderTarget &target, const sf::RenderStates &states) const;
 
-    long int getId() const;
-
-    sf::FloatRect getHitbox() const;
+    // Boite de collision, en coordonnees monde. Par defaut : tout le sprite.
+    // Virtuelle : une classe derivee peut l'ajuster (voir Humanoid).
+    virtual sf::FloatRect getHitbox() const;
 
     sf::Vector2f getPosition() const;
     void setPosition(sf::Vector2f position);
@@ -63,14 +63,20 @@ public:
     bool hasFallenOutOfLevel() const;
     void markFallenOutOfLevel();
 
+    // Demande le retrait de l'entite (brique cassee, objet ramasse...). Le
+    // retrait a lieu apres la boucle d'update : on ne modifie jamais la liste
+    // des entites pendant qu'on la parcourt.
+    void markForRemoval() { this->removed = true; }
+    bool isMarkedForRemoval() const { return this->removed; }
+
 protected:
-    long int id;
     sf::Sprite sprite;
     bool is_visible = false;
     float animTime = 0.;
     FacingDirection facing_direction_ = DOWN;
     sf::Vector2f velocity, last_velocity;
     bool fallen_out_of_level = false;
+    bool removed = false;
     int zone = 0;
 };
 #endif

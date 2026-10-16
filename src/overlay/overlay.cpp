@@ -71,6 +71,25 @@ void OverlayText::realign() {
     text.setOrigin(roundVector({x, 0.f}));
 }
 
+// ----------------------------------------------------------- OverlayClickArea
+
+OverlayClickArea::OverlayClickArea(const sf::FloatRect bounds, Action onClick)
+    : bounds(bounds), onClick(std::move(onClick)) {
+}
+
+bool OverlayClickArea::handleEvent(Game &game, const sf::Event &event, const sf::Vector2f mouse) {
+    if (const auto *pressed = event.getIf<sf::Event::MouseButtonPressed>()) {
+        if (pressed->button == sf::Mouse::Button::Left && bounds.contains(mouse)) {
+            // Rien apres l'action : elle peut changer de niveau ou d'overlay.
+            if (onClick) {
+                onClick(game);
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
 // -------------------------------------------------------------- OverlayButton
 
 OverlayButton::OverlayButton(const sf::Font &font, const sf::FloatRect bounds, const sf::String &label,

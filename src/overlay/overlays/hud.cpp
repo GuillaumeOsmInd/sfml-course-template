@@ -17,6 +17,13 @@ public:
             .bindTo([](const Game &g) {
                 return sf::String(U"MARIO × ") + sf::String(std::to_string(g.getLife()));
             });
+
+        // Pieces, en haut a droite, sur deux chiffres comme dans le jeu original.
+        add<OverlayText>(game.getFont(), sf::Vector2f(ZONE_HEIGHT - 16.f, 12.f), "", 8, Align::RIGHT)
+            .bindTo([](const Game &g) {
+                const int coins = g.getCoins();
+                return sf::String(U"PIÈCES × ") + sf::String((coins < 10 ? "0" : "") + std::to_string(coins));
+            });
     }
 
     bool isVisible(const Game &game) const override {

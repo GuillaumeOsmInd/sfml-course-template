@@ -13,6 +13,7 @@
 #include "entity/entities/enemies/enemy.cpp"
 #include "overlay/overlays/hud.cpp"
 #include "overlay/overlays/game_over.cpp"
+#include "overlay/overlays/menu.cpp"
 
 Game *Game::INSTANCE = nullptr;
 
@@ -22,16 +23,12 @@ Game &Game::getInstance() {
 }
 
 Game::Game() {
-    // Enregistree des le debut : tout ce qui est construit ensuite (niveaux,
-    // entites, overlays) peut deja appeler getInstance().
-    assert(INSTANCE == nullptr && "Game est un singleton : une seule instance");
     INSTANCE = this;
 
     this->window = sf::RenderWindow(sf::VideoMode({400, 400}), "Super Mario Bros!");
     this->window.setFramerateLimit(240);
     this->view = window.getDefaultView();
 
-    // Police pixel : sans lissage, le texte agrandi reste net.
     this->font.setSmooth(false);
 }
 
@@ -43,8 +40,8 @@ void Game::initialize() {
 
     //levels.push_back(std::make_shared<Level0>());
     levels.push_back(std::make_unique<MenuLevel>());
-    levels.push_back(std::make_unique<Level1_1>());
     levels.push_back(std::make_unique<Level1_2>());
+    levels.push_back(std::make_unique<Level1_1>());
     //levels.push_back(std::make_unique<Level2>());
     //levels.push_back(std::make_unique<Level3>());
 
@@ -52,9 +49,9 @@ void Game::initialize() {
     playerImage.createMaskFromColor(sf::Color(0x92, 0x90, 0xFF));
     playerTexture = sf::Texture(playerImage);
 
-    // Overlays communs a tous les niveaux.
     addOverlay(std::make_shared<HUD>(*this));
-    addOverlay(std::make_shared<GameOverOverlay>(*this));   // en dernier : au-dessus de tout
+    addOverlay(std::make_shared<MenuOverlay>(*this));
+    addOverlay(std::make_shared<GameOverOverlay>(*this));
 
     changeLevel(0);
 
@@ -95,7 +92,7 @@ void Game::updateThings() {
         }
     }
 
-    if (gameOver) {
+    if (isGameOver()) {
         return;
     }
 
@@ -113,11 +110,28 @@ void Game::updateThings() {
             changeLevel(currentLevelIndex);
             return;
         }
+
+        if (mario != nullptr && !mario->isDead() && currentLevel->isExitAt(mario->getHitbox().getCenter())) {
+            changeLevel((currentLevelIndex + 1) % levels.size());
+            return;
+        }
     }
 
     entities.erase(std::remove_if(entities.begin(), entities.end(), [](const auto &entity) {
-        return entity->hasFallenOutOfLevel() && dynamic_cast<Player*>(entity.get()) == nullptr;
+        return (entity->hasFallenOutOfLevel() && dynamic_cast<Player*>(entity.get()) == nullptr)
+            || entity->isMarkedForRemoval();
     }), entities.end());
+
+    for (auto &entity : pendingSpawns) {
+        currentLevel->addEntity(std::move(entity));
+    }
+    pendingSpawns.clear();
+}
+
+void Game::spawn(std::shared_ptr<Entity> entity) {
+    if (entity != nullptr) {
+        pendingSpawns.push_back(std::move(entity));
+    }
 }
 
 void Game::drawThings() {
@@ -168,6 +182,18 @@ int Game::getLife() const {
     return this->life;
 }
 
+int Game::getCoins() const {
+    return this->coins;
+}
+
+void Game::addCoin() {
+    this->coins++;
+    if (this->coins >= COINS_PER_LIFE) {
+        this->coins -= COINS_PER_LIFE;
+        this->life++;
+    }
+}
+
 const Level *Game::getCurrentLevel() const {
     return this->currentLevel;
 }
@@ -179,12 +205,16 @@ bool Game::isFree(const sf::FloatRect &from, const sf::FloatRect &to, Entity &en
     }
 
     for (const auto &entity : this->currentLevel->getEntities()) {
-        if (entity.get() == &ent || !entity->isSolid())
+        if (entity.get() == &ent)
             continue;
         if (to.findIntersection(entity->getHitbox())) {
             ent.interactWith(*entity, side);
             entity->interactWith(ent, opposite(side));
-            return false;
+            // Une entite non solide (piece posee, Mario mort...) est prevenue du
+            // contact mais ne bloque pas : on continue de chercher un obstacle.
+            if (entity->isSolid()) {
+                return false;
+            }
         }
     }
 
@@ -202,6 +232,16 @@ void Game::onResize(const sf::Vector2u size) {
 void Game::changeLevel(const std::size_t index) {
     Level *next = levels.at(index).get();
 
+    pendingSpawns.clear();
+
+    // Attributs de Mario a transmettre au nouveau niveau, lus AVANT de vider le
+    // niveau (qui detruit l'ancien Mario). Apres une mort, Mario est deja
+    // redevenu petit : il recommence donc de zero.
+    Player::State marioState;
+    if (const auto oldMario = std::dynamic_pointer_cast<Player>(player.lock())) {
+        marioState = oldMario->getState();
+    }
+
     if (currentLevel != nullptr) {
         currentLevel->unload();
         currentLevel->getEntities().clear();
@@ -212,6 +252,7 @@ void Game::changeLevel(const std::size_t index) {
     currentLevel->load(*this);
 
     auto player = std::make_shared<Player>(playerTexture);
+    player->setState(marioState);                    // avant setPosition : la taille compte pour la zone
     player->setPosition(currentLevel->getSpawnPoint());
     player->setVisible(true);
     this->currentLevel->addEntity(player);
@@ -253,8 +294,6 @@ void Game::clampView() {
     sf::Vector2f center = view.getCenter();
     center.x = std::clamp(center.x, half.x, std::max(half.x, level.x - half.x));
 
-    // Verticalement, la camera montre exactement la zone de Mario. Apres une
-    // teleportation (tuyau), elle change donc de zone a la frame suivante.
     if (const auto p = player.lock()) {
         center.y = p->getZone() * ZONE_HEIGHT + ZONE_HEIGHT / 2.f;
     }
@@ -278,9 +317,6 @@ void Game::decrementLife() {
 }
 
 void Game::endGame() {
-    // Simple drapeau : endGame() peut etre appelee pendant la mise a jour des
-    // entites (mort de Mario), on ne touche donc a aucune liste ici.
-    // Le reste est fait par updateThings() et GameOverOverlay::isVisible().
     gameOver = true;
 }
 

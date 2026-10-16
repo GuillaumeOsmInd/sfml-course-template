@@ -5,20 +5,48 @@
 #include "level.h"
 
 // Definition complete d'Entity : necessaire pour appeler ses methodes
-// (getId...). Dans level.h, la declaration anticipee "class Entity;" suffit.
+// (getHitbox...). Dans level.h, la declaration anticipee "class Entity;" suffit.
 #include "../entity/entity.h"
+
+// Les entites placees par load() : incluses ici et non dans level.h, ou elles
+// creaient une inclusion circulaire (level.h -> block.cpp -> game.h -> level.h).
+#include "../game.h"
+#include "../entity/entities/blocks/block.cpp"
+#include "../entity/entities/enemies/goomba.cpp"
+#include "../entity/entities/items/mushroom.cpp"
+
+void Level::load(Game &game) {
+    constexpr unsigned BLOCK_BIT = 0b10;
+    for (unsigned y = 0; y < collisionMask.getSize().y; y += 16) {
+        for (unsigned x = 0; x < collisionMask.getSize().x; x += 16) {
+            const sf::Color c = collisionMask.getPixel({x, y});
+            const sf::Vector2f position(static_cast<float>(x), static_cast<float>(y));
+            if ((c.r & BLOCK_BIT) && (c.g & BLOCK_BIT)) {
+                addEntity(std::make_shared<Goomba>(position));
+            } else if ((c.g & BLOCK_BIT) && (c.b & BLOCK_BIT)) {
+                addEntity(std::make_shared<MysteryBlock>(position, [](const sf::Vector2f p) {
+                    return std::make_shared<Mushroom>(p);
+                }));
+            } else if (c.r & BLOCK_BIT) {
+                addEntity(std::make_shared<Brick>(position));
+            } else if (c.g & BLOCK_BIT) {
+                addEntity(std::make_shared<CoinBlock>(position));   // bloc mystere (piece)
+            } else if (c.b & BLOCK_BIT) {
+                addEntity(std::make_shared<Coin>(position));        // piece posee
+            }
+        }
+    }
+}
 
 Level::Level(const std::filesystem::path &backgroundFile) : backgroundTexture(backgroundFile), background(backgroundTexture), foreground(backgroundTexture) {
     this->collisionMask = backgroundTexture.copyToImage();
 
-    const sf::Image image = backgroundTexture.copyToImage();
-    collisionMask = image;
-
+    const sf::Image &image = collisionMask;
     sf::Image front(image.getSize(), sf::Color::Transparent);
     for (unsigned y = 0; y < image.getSize().y; ++y) {
         for (unsigned x = 0; x < image.getSize().x; ++x) {
             const sf::Color c = image.getPixel({x, y});
-            if (c.g & 1) {   // vert impair = premier plan
+            if (c.g & 1) {   // vert impair = premier plan + sortie
                 front.setPixel({x, y}, c);
             }
         }
@@ -53,6 +81,12 @@ const sf::Sprite& Level::getForeground() const {
     return this->foreground;
 }
 
+bool Level::isExitAt(const sf::Vector2f point) const {
+    const sf::Vector2u size = collisionMask.getSize();
+    if (point.x < 0 || point.y < 0 || point.x >= size.x || point.y >= size.y) return false;
+    return (collisionMask.getPixel({unsigned(point.x), unsigned(point.y)}).g & 1) != 0;   // vert impair
+}
+
 sf::Vector2f Level::getSize() const {
     return this->background.getGlobalBounds().size;
 }
@@ -71,7 +105,7 @@ bool Level::isCollinding(const sf::FloatRect &from, const sf::FloatRect &to, con
      *  L'idée est d'utiliser la composante rouge pour dire si un pixel est un mur ou non :
      *   - Si la composante est paire -> ce n'est pas un mur
      *   - Si elle est impaire -> c'est un mur
-     *  Même principe pour le vert (premier plan) et le bleu (collision uniquement par le haut).
+     *  Même principe pour le vert (premier plan + sortie de niveau) et le bleu (collision uniquement par le haut).
      *
      *  Cette technique est quasi impercéptible pour la texture affiché du fait de la très faible différence de couleur.
      *  Un papier sur le principe de steganograpghie et de l'impércéptibilité des différences :
@@ -93,11 +127,17 @@ bool Level::isCollinding(const sf::FloatRect &from, const sf::FloatRect &to, con
     // 1. Murs (rouge impair) et bords du niveau : bloquent dans toutes les directions,
     //    sauf en haut de la zone (Mario peut sauter hors de l'ecran) et en bas
     //    (il tombe et meurt : voir fallsOutOfBottom).
+    // Coins de la hitbox. Les bords droit et bas sont exclus (moins EDGE) : une
+    // hitbox de y=192 a y=208 occupe les lignes 192 a 207. Elle est donc posee
+    // SUR un sol qui commence a la ligne 208, sans y etre deja enfoncee.
+    constexpr float EDGE = 0.001f;
+    const float right = to.position.x + to.size.x - EDGE;
+    const float bottom = to.position.y + to.size.y - EDGE;
     const sf::Vector2f corners[4] = {
         to.position,
-        {to.position.x + to.size.x, to.position.y},
-        {to.position.x, to.position.y + to.size.y},
-        to.position + to.size
+        {right, to.position.y},
+        {to.position.x, bottom},
+        {right, bottom}
     };
     for (const sf::Vector2f &c : corners) {
         // Comparaisons en float : int(-0.5f) vaudrait 0, soit "dans le niveau".
@@ -116,9 +156,9 @@ bool Level::isCollinding(const sf::FloatRect &from, const sf::FloatRect &to, con
     // Des pieds deja a l'interieur, apres un saut par en dessous, ne croisent
     // aucun dessus : l'entite continue de passer a travers.
     const int left = int(to.position.x);
-    const int right = int(to.position.x + to.size.x);
+    const int rightColumn = int(right);
     for (int y = int(from.position.y + from.size.y); y <= int(to.position.y + to.size.y); ++y) {
-        for (const int x : {left, right}) {
+        for (const int x : {left, rightColumn}) {
             if (isOneWay(x, y) && !isOneWay(x, y - 1)) return true;
         }
     }
@@ -140,28 +180,9 @@ bool Level::hasEntity(std::shared_ptr<Entity> entity) {
     return false;
 }
 
-Entity* Level::getEntity(long int id) {
-    for (auto &entity : entities) {
-        if (entity->getId() == id) {
-            return entity.get();
-        }
-    }
-    return nullptr;
-}
-
 bool Level::removeEntity(const Entity *entity) {
     for (auto it = entities.begin(); it != entities.end(); ++it) {
         if (entity == it->get()) {
-            entities.erase(it);
-            return true;
-        }
-    }
-    return false;
-}
-
-bool Level::removeEntity(const long int id) {
-    for (auto it = entities.begin(); it != entities.end(); ++it) {
-        if (it->get()->getId() == id) {
             entities.erase(it);
             return true;
         }

@@ -5,17 +5,13 @@
 
 #include "../game.h"
 
-Entity::Entity(const int id, const sf::Texture &texture, const sf::Vector2f position)
-    : id(id), sprite(texture) {
+Entity::Entity(const sf::Texture &texture, const sf::Vector2f position)
+    : sprite(texture) {
     this->setPosition(position);
 }
 
 void Entity::draw(sf::RenderTarget &target, const sf::RenderStates &states) const {
     target.draw(this->sprite, states);
-}
-
-long int Entity::getId() const {
-    return this->id;
 }
 
 const sf::Sprite& Entity::getSprite() const {

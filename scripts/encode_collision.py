@@ -1,30 +1,42 @@
 """
 Encode un masque de niveau dans les bits de poids faible d'une texture.
 
-Le masque est une seule image, chaque canal porte une information, encodee
-dans le MEME canal de la texture. L'alpha de la texture n'est jamais modifie.
+Le masque est une seule image. Ses informations sont cachees dans les deux
+bits de poids faible des composantes rouge, verte et bleue de la texture.
+L'alpha de la texture n'est jamais modifie.
+
+Bit 0 (0b01) : le decor.
 
     Masque          Signification                      Bit encode dans la texture
-    R = 0xFF   ->   collision                          rouge impair
-    G = 0xFF   ->   premier plan (dessine devant)      vert impair
-    B = 0xFF   ->   collision uniquement par le haut   bleu impair
+    R = 0xFF   ->   collision                          rouge  & 0b01
+    G = 0xFF   ->   premier plan (dessine devant)      vert   & 0b01
+                    + sortie : passe au niveau suivant
+    B = 0xFF   ->   collision uniquement par le haut   bleu   & 0b01
                     (plateforme traversable en saut)
 
-Les canaux se combinent. Exemple : 0x00FFFF = premier plan + plateforme
-traversable, la texture est dessinee par dessus le joueur et le porte
-quand il est dessus.
+    Les canaux se combinent. Exemple : 0xFF00FF = mur + plateforme traversable.
+    Seule la valeur exacte 0xFF compte.
 
-Seule la valeur exacte 0xFF compte. Ne portent aucune information :
-  - les pixels totalement transparents du masque ;
-  - les pixels blancs (0xFFFFFF) et noirs (0x000000) : on peut s'en servir
-    comme fond ou pour annoter le masque sans creer de collisions.
+Bit 1 (0b10) : les blocs, des entites creees au chargement du niveau. On les
+peint en cases de 16 x 16 ; le jeu lit le coin haut-gauche de chaque case.
 
-Principe, pour chaque canal :
-  1. Tous les pixels de la texture recoivent une composante PAIRE.
-  2. La ou le masque porte l'information, la composante devient IMPAIRE.
+    Masque          Bloc                               Bit encode dans la texture
+    0xFFFFFF   ->   brique                             rouge  & 0b10
+    0x000000   ->   bloc mystere (piece)               vert   & 0b10
+    0x808080   ->   piece posee (ramassable)           bleu   & 0b10
+    0x804000   ->   Goomba                             rouge & 0b10 + vert & 0b10
+    0x008080   ->   bloc champignon                    vert  & 0b10 + bleu & 0b10
 
-Dans le jeu, il suffit de tester (rouge & 1), (vert & 1) ou (bleu & 1).
-La difference est de 1/255 au maximum : invisible a l'oeil.
+    Ces trois couleurs ne creent aucune collision (bit 0).
+
+Les pixels totalement transparents du masque ne portent aucune information.
+
+Principe, pour chaque bit de chaque canal :
+  1. Le bit est mis a 0 sur tous les pixels de la texture.
+  2. Il est mis a 1 la ou le masque porte l'information.
+La difference est de 3/255 au maximum : invisible a l'oeil.
+
+Le script est idempotent : on peut l'appliquer a une texture deja encodee.
 
 Usage :
     python scripts/encode_collision.py texture.png masque.png [sortie.png]
@@ -38,6 +50,15 @@ from pathlib import Path
 
 from PIL import Image, ImageChops
 
+DECOR_BIT = 0b01
+BLOCK_BIT = 0b10
+
+BRICK_COLOR = (0xFF, 0xFF, 0xFF)
+MYSTERY_COLOR = (0x00, 0x00, 0x00)
+COIN_COLOR = (0x80, 0x80, 0x80)
+GOOMBA_COLOR = (0x80, 0x40, 0x00)
+MUSHROOM_COLOR = (0x00, 0x80, 0x80)
+
 
 def flag(band: Image.Image, informative: Image.Image) -> Image.Image:
     """255 la ou la composante vaut exactement 0xFF sur un pixel porteur d'information, 0 ailleurs."""
@@ -45,11 +66,11 @@ def flag(band: Image.Image, informative: Image.Image) -> Image.Image:
     return ImageChops.multiply(is_full, informative)
 
 
-def encode_lsb(channel: Image.Image, marked: Image.Image) -> Image.Image:
-    """Rend le canal pair partout, puis impair la ou `marked` vaut 255."""
-    even = channel.point(lambda v: v & ~1)
-    odd = even.point(lambda v: v | 1)
-    return Image.composite(odd, even, marked)
+def encode_bit(channel: Image.Image, marked: Image.Image, bit: int) -> Image.Image:
+    """Met `bit` a 0 partout dans le canal, puis a 1 la ou `marked` vaut 255."""
+    cleared = channel.point(lambda v: v & ~bit)
+    raised = cleared.point(lambda v: v | bit)
+    return Image.composite(raised, cleared, marked)
 
 
 def encode(texture: Image.Image, mask: Image.Image) -> tuple[Image.Image, dict[str, int]]:
@@ -60,40 +81,54 @@ def encode(texture: Image.Image, mask: Image.Image) -> tuple[Image.Image, dict[s
     # l'editeur a laisse des valeurs RGB dessous.
     opaque = mask_a.point(lambda v: 255 if v > 0 else 0)
 
-    # Le blanc et le noir non plus : sans cette regle, un pixel blanc
-    # (FF sur les trois canaux) activerait les trois drapeaux a la fois.
-    def all_equal(value: int) -> Image.Image:
-        bands = [band.point(lambda v: 255 if v == value else 0) for band in (mask_r, mask_g, mask_b)]
-        return ImageChops.multiply(ImageChops.multiply(bands[0], bands[1]), bands[2])
+    def is_color(color: tuple[int, int, int]) -> Image.Image:
+        """255 sur les pixels opaques du masque exactement de cette couleur."""
+        bands = [band.point(lambda v, c=c: 255 if v == c else 0) for band, c in zip((mask_r, mask_g, mask_b), color)]
+        same = ImageChops.multiply(ImageChops.multiply(bands[0], bands[1]), bands[2])
+        return ImageChops.multiply(same, opaque)
 
-    ignored = ImageChops.lighter(all_equal(0xFF), all_equal(0x00))   # blanc OU noir
-    informative = ImageChops.multiply(opaque, ImageChops.invert(ignored))
+    # Bit 1 : les blocs.
+    bricks = is_color(BRICK_COLOR)
+    mysteries = is_color(MYSTERY_COLOR)
+    coins = is_color(COIN_COLOR)
+    goombas = is_color(GOOMBA_COLOR)
+    mushrooms = is_color(MUSHROOM_COLOR)
 
+    # Bit 0 : le decor. Les couleurs de blocs n'en portent pas : sans cette
+    # regle, le blanc (FF sur les trois canaux) activerait les trois drapeaux.
+    blocks = ImageChops.lighter(ImageChops.lighter(ImageChops.lighter(bricks, mysteries), coins), goombas)
+    blocks = ImageChops.lighter(blocks, mushrooms)
+    informative = ImageChops.multiply(opaque, ImageChops.invert(blocks))
     solid = flag(mask_r, informative)
     front = flag(mask_g, informative)
     one_way = flag(mask_b, informative)
 
-    # Chaque canal du masque est encode dans le meme canal de la texture.
-    # Les trois sont toujours normalises, meme sans aucun pixel marque :
-    # sinon le jeu lirait comme marques les pixels impairs par hasard.
-    # L'alpha n'est pas touche.
-    r = encode_lsb(r, solid)
-    g = encode_lsb(g, front)
-    b = encode_lsb(b, one_way)
+    # Chaque bit est toujours normalise, meme sans aucun pixel marque : sinon
+    # le jeu lirait comme marques les pixels dont le bit vaut 1 par hasard.
+    # Goomba : combinaison rouge + vert du bit 1.
+    r = encode_bit(encode_bit(r, solid, DECOR_BIT), ImageChops.lighter(bricks, goombas), BLOCK_BIT)
+    g = encode_bit(encode_bit(g, front, DECOR_BIT), ImageChops.lighter(ImageChops.lighter(mysteries, goombas), mushrooms), BLOCK_BIT)
+    # Bloc champignon : combinaison vert + bleu du bit 1.
+    b = encode_bit(encode_bit(b, one_way, DECOR_BIT), ImageChops.lighter(coins, mushrooms), BLOCK_BIT)
 
     counts = {
-        "collision          (R)": solid.histogram()[255],
-        "premier plan       (G)": front.histogram()[255],
-        "collision par haut (B)": one_way.histogram()[255],
-        "ignores (blanc)       ": ImageChops.multiply(opaque, all_equal(0xFF)).histogram()[255],
+        "collision           (R 0b01)": solid.histogram()[255],
+        "premier plan/sortie (G 0b01)": front.histogram()[255],
+        "collision par haut  (B 0b01)": one_way.histogram()[255],
+        "briques             (R 0b10)": bricks.histogram()[255],
+        "blocs mysteres      (G 0b10)": mysteries.histogram()[255],
+        "pieces posees       (B 0b10)": coins.histogram()[255],
+        "goombas         (R+G 0b10)": goombas.histogram()[255],
+        "blocs champignon (G+B 0b10)": mushrooms.histogram()[255],
     }
     return Image.merge("RGBA", (r, g, b, a)), counts
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Encode un masque de niveau (R=collision, G=premier plan, B=collision par le haut) "
-        "dans les bits de poids faible des memes canaux d'une texture."
+        description="Encode un masque de niveau dans les deux bits de poids faible des composantes d'une texture : "
+        "bit 0 = decor (R collision, G premier plan + sortie, B collision par le haut), "
+        "bit 1 = blocs et ennemis (blanc brique, noir bloc mystere, gris piece posee, marron Goomba)."
     )
     parser.add_argument("texture", type=Path, help="texture PNG")
     parser.add_argument("mask", type=Path, help="masque PNG de meme taille")

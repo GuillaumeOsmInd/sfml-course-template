@@ -37,14 +37,17 @@ public:
 
     bool isFree(const sf::FloatRect &from, const sf::FloatRect &to, Entity &ent, FacingDirection side) const;
 
+    void spawn(std::shared_ptr<Entity> entity);
+
     void addOverlay(std::shared_ptr<Overlay> overlay);
     sf::View getOverlayView() const;
 
     int getLife() const;
+
+    int getCoins() const;
+    void addCoin();
     void decrementLife();
 
-    // Met fin a la partie : le niveau et les entites sont figes et l'ecran
-    // "GAME OVER" s'affiche. La fenetre reste ouverte jusqu'a sa fermeture.
     void endGame();
     bool isGameOver() const;
 
@@ -70,10 +73,13 @@ private:
     std::size_t currentLevelIndex = 0;
     sf::Texture playerTexture;
     int life = 3;
+    int coins = 0;   // conserve d'un niveau a l'autre et apres une mort
+    static constexpr int COINS_PER_LIFE = 10;   // pieces pour gagner une vie
     bool gameOver = false;
 
     std::vector<std::unique_ptr<Level>> levels{};
     std::vector<std::shared_ptr<Entity>> entities{};
+    std::vector<std::shared_ptr<Entity>> pendingSpawns{};   // voir spawn()
     std::vector<std::shared_ptr<Overlay>> overlays{};
 
     sf::Font font = sf::Font(RESOURCES_DIR "/fonts/smb.ttf");

@@ -20,7 +20,7 @@ class Game;
 
 /**
  *  Systeme d'overlay : des elements (textes, boutons...) dessines par dessus le
- *  niveau, apres le premier plan.
+ *  niveau, apres les entites.
  *
  *  Les coordonnees d'un overlay sont celles de l'ecran du jeu : un carre de
  *  ZONE_HEIGHT x ZONE_HEIGHT pixels, (0, 0) en haut a gauche. Elles ne bougent
@@ -73,6 +73,22 @@ private:
     sf::Text text;
     Align align;
     Provider provider;
+};
+
+// Zone cliquable invisible : pour un bouton deja dessine dans la texture du
+// niveau. Elle ne dessine rien, elle declenche seulement l'action au clic.
+class OverlayClickArea : public OverlayElement {
+public:
+    using Action = std::function<void(Game &)>;
+
+    OverlayClickArea(sf::FloatRect bounds, Action onClick);
+
+    bool handleEvent(Game &game, const sf::Event &event, sf::Vector2f mouse) override;
+    void draw(sf::RenderTarget &target) const override {}
+
+private:
+    sf::FloatRect bounds;
+    Action onClick;
 };
 
 class OverlayButton : public OverlayElement {

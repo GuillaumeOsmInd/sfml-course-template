@@ -28,7 +28,7 @@ public:
     explicit Level(const std::filesystem::path &backgroundFile);
     virtual ~Level() = default;
 
-    virtual void load(Game &game) {}
+    virtual void load(Game &game);
     virtual void unload() {}
 
     void update(float dt);
@@ -36,6 +36,8 @@ public:
 
     const sf::Sprite& getBackground() const;
     const sf::Sprite& getForeground() const;
+
+    bool isExitAt(sf::Vector2f point) const;
     virtual bool needHud() const { return true; }
 
     sf::Vector2f getSize() const;
@@ -49,9 +51,7 @@ public:
     void addEntity(std::shared_ptr<Entity> entity);
     bool hasEntity(std::shared_ptr<Entity> entity);
 
-    Entity* getEntity(long int id);
     bool removeEntity(const Entity *entity);
-    bool removeEntity(long int id);
 
     std::vector<std::shared_ptr<Entity>> &getEntities();
     const std::vector<std::shared_ptr<Entity>> &getEntities() const;

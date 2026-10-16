@@ -14,6 +14,7 @@
 #include "../entity/entities/blocks/block.cpp"
 #include "../entity/entities/enemies/goomba.cpp"
 #include "../entity/entities/items/mushroom.cpp"
+#include "../entity/entities/tunnels/tunnel.cpp"
 
 void Level::load(Game &game) {
     constexpr unsigned BLOCK_BIT = 0b10;
@@ -64,10 +65,10 @@ void Level::update(const float dt) {
 
 void Level::draw(sf::RenderWindow &window, const RenderPass renderPass) const {
     switch (renderPass) {
-        case RenderPass::BEFORE_ENTITIES:
+        case BEFORE_ENTITIES:
             window.draw(background);
             break;
-        case RenderPass::AFTER_ENTITIES:
+        case AFTER_ENTITIES:
             window.draw(foreground);
             break;
     }
@@ -89,6 +90,20 @@ bool Level::isExitAt(const sf::Vector2f point) const {
 
 sf::Vector2f Level::getSize() const {
     return this->background.getGlobalBounds().size;
+}
+
+sf::FloatRect Level::getZoneBounds(const int zone) const {
+    float left = 0.f;
+    float right = getSize().x;
+    if (const auto it = zoneBounds.find(zone); it != zoneBounds.end()) {
+        left = it->second.first;
+        right = it->second.second;
+    }
+    return {{left, zone * ZONE_HEIGHT}, {right - left, ZONE_HEIGHT}};
+}
+
+void Level::setZoneBounds(const int zone, const float left, const float right) {
+    zoneBounds[zone] = {left, right};
 }
 
 sf::Vector2f Level::getSpawnPoint() const {
@@ -127,9 +142,6 @@ bool Level::isCollinding(const sf::FloatRect &from, const sf::FloatRect &to, con
     // 1. Murs (rouge impair) et bords du niveau : bloquent dans toutes les directions,
     //    sauf en haut de la zone (Mario peut sauter hors de l'ecran) et en bas
     //    (il tombe et meurt : voir fallsOutOfBottom).
-    // Coins de la hitbox. Les bords droit et bas sont exclus (moins EDGE) : une
-    // hitbox de y=192 a y=208 occupe les lignes 192 a 207. Elle est donc posee
-    // SUR un sol qui commence a la ligne 208, sans y etre deja enfoncee.
     constexpr float EDGE = 0.001f;
     const float right = to.position.x + to.size.x - EDGE;
     const float bottom = to.position.y + to.size.y - EDGE;
@@ -140,9 +152,8 @@ bool Level::isCollinding(const sf::FloatRect &from, const sf::FloatRect &to, con
         {right, bottom}
     };
     for (const sf::Vector2f &c : corners) {
-        // Comparaisons en float : int(-0.5f) vaudrait 0, soit "dans le niveau".
-        if (c.x < 0 || c.x >= size.x) return true;    // gauche, droite
-        if (c.y < zoneTop || c.y >= zoneBottom) continue;   // hors de la zone : vide, pas de pixel a lire
+        if (c.x < 0 || c.x >= size.x) return true;
+        if (c.y < zoneTop || c.y >= zoneBottom) continue;
         if (pixel(int(c.x), int(c.y)).r & 1) return true;
     }
 
@@ -151,10 +162,6 @@ bool Level::isCollinding(const sf::FloatRect &from, const sf::FloatRect &to, con
 
     auto isOneWay = [&](const int x, const int y) { return inside(x, y) && (pixel(x, y).b & 1); };
 
-    // Les pieds bloquent s'ils passent par le DESSUS d'une plateforme pendant
-    // ce deplacement (pixel traversable sans plateforme juste au-dessus).
-    // Des pieds deja a l'interieur, apres un saut par en dessous, ne croisent
-    // aucun dessus : l'entite continue de passer a travers.
     const int left = int(to.position.x);
     const int rightColumn = int(right);
     for (int y = int(from.position.y + from.size.y); y <= int(to.position.y + to.size.y); ++y) {
@@ -169,6 +176,15 @@ void Level::addEntity(std::shared_ptr<Entity> entity) {
     if (!hasEntity(entity)) {
         entities.push_back(std::move(entity));
     }
+}
+
+void Level::addTunnels(const sf::FloatRect areaA, const std::optional<FacingDirection> entryA,
+                       const sf::FloatRect areaB, const std::optional<FacingDirection> entryB) {
+    const auto a = std::make_shared<Tunnel>(areaA, entryA);
+    const auto b = std::make_shared<Tunnel>(areaB, entryB);
+    Tunnel::link(a, b);
+    addEntity(a);
+    addEntity(b);
 }
 
 bool Level::hasEntity(std::shared_ptr<Entity> entity) {
@@ -199,8 +215,6 @@ const std::vector<std::shared_ptr<Entity>> &Level::getEntities() const {
 }
 
 bool Level::fallsOutOfBottom(const sf::FloatRect &from, const sf::FloatRect &to, const int zone) const {
-    // On compare le HAUT de la hitbox : l'entite meurt une fois entierement
-    // sortie de l'ecran, pas des que ses pieds touchent le bord.
     const float bottom = (zone + 1) * ZONE_HEIGHT;
     return from.position.y < bottom && to.position.y >= bottom;
 }

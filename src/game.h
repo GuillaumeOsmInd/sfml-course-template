@@ -58,7 +58,8 @@ private:
     friend int main();
 
     void updateViewport();
-    void clampView();
+    // Centre la vue sur Mario, bornee a sa zone (voir Level::getZoneBounds).
+    void updateCamera();
 
     bool dispatchToOverlays(const sf::Event &event);
 

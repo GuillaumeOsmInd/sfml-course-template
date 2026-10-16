@@ -36,6 +36,7 @@ add_executable(main
         src/entity/entities/enemies/goomba.cpp
         src/entity/entities/items/mushroom.cpp
         src/entity/entities/items/coin.cpp
+        src/entity/entities/tunnels/tunnel.cpp
         src/overlay/overlay.h
         src/overlay/overlay.cpp
         src/overlay/overlays/hud.cpp

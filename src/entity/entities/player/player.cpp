@@ -6,6 +6,7 @@
 #include "../enemies/enemy.cpp"
 #include "../blocks/block.cpp"
 #include "../items/mushroom.cpp"
+#include "../tunnels/tunnel.cpp"
 #include "../../../game.h"
 
 class Player : public Humanoid {
@@ -46,6 +47,8 @@ public:
             return;
         }
 
+        useTunnel(game);
+
         // Petit et grand Mario ont les memes x sur la planche : seules la ligne
         // (y) et la hauteur changent.
         const int row = big ? 32 : 8;
@@ -59,8 +62,7 @@ public:
         } else {
             sprite.setTextureRect({{96, row}, {16, height}});
         }
-
-        view.setCenter(this->getPosition() + this->getSprite().getGlobalBounds().size / 2.f);
+        // La camera suit Mario : voir Game::updateCamera.
     }
 
     void interactWith(Entity &entity, FacingDirection side) override {
@@ -136,6 +138,53 @@ protected:
     }
 
 private:
+    // Devant un tunnel, avec sa touche enfoncee : Mario ressort par l'autre
+    // tunnel de la paire. Apres un passage, les tunnels sont verrouilles tant
+    // que Mario reste dans une zone de tunnel en tenant une touche ZQSD : sinon,
+    // en gardant S enfonce, il repartirait aussitot par le tunnel de sortie.
+    void useTunnel(const Game &game) {
+        const sf::FloatRect box = getHitbox();
+        bool inTunnelArea = false;
+
+        // Lecture seule de la liste des entites : on est dans la boucle d'update.
+        for (const auto &entity : game.getCurrentLevel()->getEntities()) {
+            const auto *tunnel = dynamic_cast<const Tunnel *>(entity.get());
+            if (tunnel == nullptr || !box.findIntersection(tunnel->getHitbox())) {
+                continue;
+            }
+            inTunnelArea = true;
+
+            if (!tunnelLocked && tunnel->canEnter(box, on_ground)
+                && sf::Keyboard::isKeyPressed(Tunnel::keyFor(*tunnel->getEntry()))) {
+                exitThrough(*tunnel->getExit());
+                tunnelLocked = true;
+                return;
+            }
+        }
+
+        const bool tunnelKeyHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z)
+                                   || sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Q)
+                                   || sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)
+                                   || sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D);
+        if (!inTunnelArea || !tunnelKeyHeld) {
+            tunnelLocked = false;
+        }
+    }
+
+    // Place les pieds de Mario au point de sortie du tunnel, sans elan. En deux
+    // temps : ou sont les pieds par rapport a la position depend de sa taille.
+    // setPosition (et non sprite.setPosition) : la zone change, la camera suit.
+    void exitThrough(const Tunnel &tunnel) {
+        velocity = {0.f, 0.f};
+        const sf::Vector2f feet = tunnel.exitFeet();
+        setPosition(feet);
+        const sf::FloatRect box = getHitbox();
+        setPosition(getPosition() + sf::Vector2f(feet.x - (box.position.x + box.size.x / 2.f),
+                                                 feet.y - (box.position.y + box.size.y)));
+    }
+
+    bool tunnelLocked = false;
+
     // Change de taille. L'origine reste au milieu des pieds a la meme
     // hauteur ((8,8) en 16x16, (8,24) en 16x32) : Mario grandit vers le haut,
     // sans s'enfoncer dans le sol. La hitbox suit le sprite.

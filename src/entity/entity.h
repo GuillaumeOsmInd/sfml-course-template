@@ -12,10 +12,8 @@
 #include "SFML/Graphics/Texture.hpp"
 #include "SFML/Graphics/View.hpp"
 #include "SFML/System/Vector2.hpp"
-#include "SFML/Window/Window.hpp"
 
 #include "facing_direction.h"
-#include "../level/zone.h"
 
 class Game;
 
@@ -31,8 +29,6 @@ public:
 
     virtual void draw(sf::RenderTarget &target, const sf::RenderStates &states) const;
 
-    // Boite de collision, en coordonnees monde. Par defaut : tout le sprite.
-    // Virtuelle : une classe derivee peut l'ajuster (voir Humanoid).
     virtual sf::FloatRect getHitbox() const;
 
     sf::Vector2f getPosition() const;

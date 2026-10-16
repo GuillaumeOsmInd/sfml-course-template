@@ -6,6 +6,7 @@
 #define SFMLPROJECT_HUMANOID_H
 
 #include "../entity.h"
+#include "../../level/zone.h"
 
 class Humanoid : public Entity {
 public:

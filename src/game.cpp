@@ -72,7 +72,7 @@ void Game::loop() {
     }
 
     this->updateThings();
-    this->clampView();
+    this->updateCamera();
 
     window.setView(view);
     window.clear();
@@ -287,16 +287,30 @@ void Game::updateViewport() {
     view.setViewport(viewport);
 }
 
-void Game::clampView() {
-    const sf::Vector2f half = view.getSize() / 2.f;
-    const sf::Vector2f level = currentLevel->getSize();
+void Game::updateCamera() {
+    const auto mario = std::dynamic_pointer_cast<const Player>(player.lock());
+    if (mario == nullptr) {
+        return;
+    }
 
     sf::Vector2f center = view.getCenter();
-    center.x = std::clamp(center.x, half.x, std::max(half.x, level.x - half.x));
 
-    if (const auto p = player.lock()) {
-        center.y = p->getZone() * ZONE_HEIGHT + ZONE_HEIGHT / 2.f;
+    // Centree sur Mario. Mort, il tombe hors du cadre : la camera reste figee.
+    if (!mario->isDead()) {
+        center.x = mario->getHitbox().getCenter().x;
     }
+
+    // Bornee a la zone de Mario (et non a toute la texture) : apres un tuyau,
+    // elle change de zone et ne montre que ce qui en fait partie.
+    const sf::FloatRect zone = currentLevel->getZoneBounds(mario->getZone());
+    const float half = view.getSize().x / 2.f;
+    if (zone.size.x <= view.getSize().x) {
+        center.x = zone.position.x + zone.size.x / 2.f;   // zone plus etroite que l'ecran : centree
+    } else {
+        center.x = std::clamp(center.x, zone.position.x + half, zone.position.x + zone.size.x - half);
+    }
+    center.y = zone.position.y + zone.size.y / 2.f;
+
     view.setCenter(center);
 }
 
